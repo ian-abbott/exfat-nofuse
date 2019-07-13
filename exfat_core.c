@@ -5084,8 +5084,10 @@ s32 sector_read(struct super_block *sb, sector_t sec, struct buffer_head **bh, s
 
 	if (!p_fs->dev_ejected) {
 		ret = bdev_read(sb, sec, bh, 1, read);
-		if (ret != FFS_SUCCESS)
+		if (ret != FFS_SUCCESS) {
+			fs_error(sb);
 			p_fs->dev_ejected = TRUE;
+		}
 	}
 
 	return ret;
@@ -5110,8 +5112,10 @@ s32 sector_write(struct super_block *sb, sector_t sec, struct buffer_head *bh, s
 
 	if (!p_fs->dev_ejected) {
 		ret = bdev_write(sb, sec, bh, 1, sync);
-		if (ret != FFS_SUCCESS)
+		if (ret != FFS_SUCCESS) {
+			fs_error(sb);
 			p_fs->dev_ejected = TRUE;
+		}
 	}
 
 	return ret;
@@ -5131,8 +5135,10 @@ s32 multi_sector_read(struct super_block *sb, sector_t sec, struct buffer_head *
 
 	if (!p_fs->dev_ejected) {
 		ret = bdev_read(sb, sec, bh, num_secs, read);
-		if (ret != FFS_SUCCESS)
+		if (ret != FFS_SUCCESS) {
+			fs_error(sb);
 			p_fs->dev_ejected = TRUE;
+		}
 	}
 
 	return ret;
@@ -5157,8 +5163,10 @@ s32 multi_sector_write(struct super_block *sb, sector_t sec, struct buffer_head 
 
 	if (!p_fs->dev_ejected) {
 		ret = bdev_write(sb, sec, bh, num_secs, sync);
-		if (ret != FFS_SUCCESS)
+		if (ret != FFS_SUCCESS) {
+			fs_error(sb);
 			p_fs->dev_ejected = TRUE;
+		}
 	}
 
 	return ret;
