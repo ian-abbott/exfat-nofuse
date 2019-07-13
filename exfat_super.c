@@ -2148,6 +2148,10 @@ static int exfat_remount(struct super_block *sb, int *flags, char *data)
 	*flags |= SB_NODIRATIME;
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,16,00)
+	sync_filesystem(sb);
+#endif
+
 	return 0;
 }
 
