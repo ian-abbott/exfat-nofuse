@@ -929,6 +929,9 @@ s32 ffsMoveFile(struct inode *old_parent_inode, FILE_ID_T *fid, struct inode *ne
 	}
 
 	/* check the validity of directory name in the given new pathname */
+	if (strlen(new_path) >= MAX_NAME_LENGTH)
+		return FFS_NAMETOOLONG;
+
 	ret = resolve_path(new_parent_inode, new_path, &newdir, &uni_name);
 	if (ret)
 		return ret;
@@ -1170,7 +1173,14 @@ s32 ffsGetStat(struct inode *inode, DIR_ENTRY_T *info)
 	info->ModifyTimestamp.Second = tm.sec;
 	info->ModifyTimestamp.MilliSecond = 0;
 
-	memset((char *) &info->AccessTimestamp, 0, sizeof(DATE_TIME_T));
+	p_fs->fs_func->get_entry_time(ep, &tm, TM_ACCESS);
+	info->AccessTimestamp.Year = tm.year;
+	info->AccessTimestamp.Month = tm.mon;
+	info->AccessTimestamp.Day = tm.day;
+	info->AccessTimestamp.Hour = tm.hour;
+	info->AccessTimestamp.Minute = tm.min;
+	info->AccessTimestamp.Second = tm.sec;
+	info->AccessTimestamp.MilliSecond = 0;
 
 	*(uni_name.name) = 0x0;
 	/* XXX this is very bad for exfat cuz name is already included in es.
@@ -1271,6 +1281,13 @@ s32 ffsSetStat(struct inode *inode, DIR_ENTRY_T *info)
 	tm.year = info->ModifyTimestamp.Year;
 	p_fs->fs_func->set_entry_time(ep, &tm, TM_MODIFY);
 
+	tm.sec  = info->AccessTimestamp.Second;
+	tm.min  = info->AccessTimestamp.Minute;
+	tm.hour = info->AccessTimestamp.Hour;
+	tm.day  = info->AccessTimestamp.Day;
+	tm.mon  = info->AccessTimestamp.Month;
+	tm.year = info->AccessTimestamp.Year;
+	p_fs->fs_func->set_entry_time(ep, &tm, TM_ACCESS);
 
 	p_fs->fs_func->set_entry_size(ep2, info->Size);
 
@@ -2111,6 +2128,9 @@ s32 exfat_count_used_clusters(struct super_block *sb)
 		}
 	}
 
+	if ((p_fs->num_clusters - 2) < (s32)count)
+		count = p_fs->num_clusters - 2;
+
 	return count;
 } /* end of exfat_count_used_clusters */
 
@@ -2754,6 +2774,9 @@ void fat_get_entry_time(DENTRY_T *p_entry, TIMESTAMP_T *tp, u8 mode)
 		t = GET16_A(ep->modify_time);
 		d = GET16_A(ep->modify_date);
 		break;
+	case TM_ACCESS:
+		d = GET16_A(ep->access_date);
+		break;
 	}
 
 	tp->sec  = (t & 0x001F) << 1;
@@ -2808,6 +2831,9 @@ void fat_set_entry_time(DENTRY_T *p_entry, TIMESTAMP_T *tp, u8 mode)
 	case TM_MODIFY:
 		SET16_A(ep->modify_time, t);
 		SET16_A(ep->modify_date, d);
+		break;
+	case TM_ACCESS:
+		SET16_A(ep->access_date, d);
 		break;
 	}
 } /* end of fat_set_entry_time */
@@ -5061,8 +5087,10 @@ s32 sector_read(struct super_block *sb, sector_t sec, struct buffer_head **bh, s
 
 	if (!p_fs->dev_ejected) {
 		ret = bdev_read(sb, sec, bh, 1, read);
-		if (ret != FFS_SUCCESS)
+		if (ret != FFS_SUCCESS) {
+			fs_error(sb);
 			p_fs->dev_ejected = TRUE;
+		}
 	}
 
 	return ret;
@@ -5087,8 +5115,10 @@ s32 sector_write(struct super_block *sb, sector_t sec, struct buffer_head *bh, s
 
 	if (!p_fs->dev_ejected) {
 		ret = bdev_write(sb, sec, bh, 1, sync);
-		if (ret != FFS_SUCCESS)
+		if (ret != FFS_SUCCESS) {
+			fs_error(sb);
 			p_fs->dev_ejected = TRUE;
+		}
 	}
 
 	return ret;
@@ -5108,8 +5138,10 @@ s32 multi_sector_read(struct super_block *sb, sector_t sec, struct buffer_head *
 
 	if (!p_fs->dev_ejected) {
 		ret = bdev_read(sb, sec, bh, num_secs, read);
-		if (ret != FFS_SUCCESS)
+		if (ret != FFS_SUCCESS) {
+			fs_error(sb);
 			p_fs->dev_ejected = TRUE;
+		}
 	}
 
 	return ret;
@@ -5134,8 +5166,10 @@ s32 multi_sector_write(struct super_block *sb, sector_t sec, struct buffer_head 
 
 	if (!p_fs->dev_ejected) {
 		ret = bdev_write(sb, sec, bh, num_secs, sync);
-		if (ret != FFS_SUCCESS)
+		if (ret != FFS_SUCCESS) {
+			fs_error(sb);
 			p_fs->dev_ejected = TRUE;
+		}
 	}
 
 	return ret;

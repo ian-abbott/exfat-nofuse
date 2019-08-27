@@ -2148,6 +2148,10 @@ static int exfat_remount(struct super_block *sb, int *flags, char *data)
 	*flags |= SB_NODIRATIME;
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,16,00)
+	sync_filesystem(sb);
+#endif
+
 	return 0;
 }
 
@@ -2161,6 +2165,8 @@ static int exfat_show_options(struct seq_file *m, struct vfsmount *mnt)
 	struct exfat_sb_info *sbi = EXFAT_SB(mnt->mnt_sb);
 #endif
 	struct exfat_mount_options *opts = &sbi->options;
+	FS_INFO_T *p_fs = &(sbi->fs_info);
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
 	if (__kuid_val(opts->fs_uid))
 		seq_printf(m, ",uid=%u", __kuid_val(opts->fs_uid));
@@ -2191,6 +2197,9 @@ static int exfat_show_options(struct seq_file *m, struct vfsmount *mnt)
 	if (opts->discard)
 		seq_printf(m, ",discard");
 #endif
+	if (p_fs->dev_ejected)
+		seq_puts(m, ",ejected");
+
 	return 0;
 }
 
